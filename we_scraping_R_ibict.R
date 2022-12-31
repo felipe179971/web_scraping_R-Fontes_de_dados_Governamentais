@@ -1,3 +1,4 @@
+#Pacotes e Funções##############################################################
 carregando_pacotes<-function(){
   packages<-c("rvest","stringr", "dplyr", "openxlsx","stringr")
   
@@ -12,10 +13,10 @@ carregando_pacotes<-function(){
   );rm(packages,package.check)
 }
 carregando_pacotes();rm(carregando_pacotes)
-
+`%nin%` = Negate(`%in%`)
 verificar_paginas<-function(html){
   x=html %>%
-    rvest::html_nodes('div div article div div ul') %>%
+    rvest::html_nodes('div div section div ul') %>%
     rvest::html_text()%>%
     strsplit(" ")%>%
     lapply(function(x) as.numeric(x))%>%
@@ -26,88 +27,166 @@ verificar_paginas<-function(html){
   }
   return(x)
 }
+#Executando#####################################################################
+cjd=68
+p_cjd=1
+d=1
 
-{
-  prefixo_site1="https://dev.dados.gov.br"
-  #Link Inicial com todas as organizacoes encontradas
-  html_organizacoes <- rvest::read_html("https://dev.dados.gov.br/organization")
-  ##Verificando quantas paginas tenho
-  paginas_organizacoes=verificar_paginas(html_organizacoes) 
-  if(!"we_scraping_R_ibict.xlsx"%in%dir()){
-    resultado=data.frame(id=0,organizacao=0,titulo=0,link=0,`Pg Inicial`=0,Org=0,`Pg Org`=0,Bases=0)
-  }else{
-    resultado=openxlsx::read.xlsx("we_scraping_R_ibict.xlsx")
-  }
-  
-  
-  o=1
-  io=1
-  iop=1
-  b=1
-  for(o in 1:paginas_organizacoes){
-    tryCatch(
-      {
-        link_organizacao=rvest::read_html(paste0("https://dev.dados.gov.br/organization?q=&sort=&page=",o))%>%
-          rvest::html_nodes('div div article div ul li a')%>%
-          html_attr('href')
-        if(any(!stringr::str_detect(link_organizacao,"organization"))){link_organizacao<-link_organizacao[-which(!stringr::str_detect(link_organizacao,"organization"))]}
-        link_organizacao<-paste0(prefixo_site1,link_organizacao)
-        #Inside Ornazination website
-        #for(io in 1){
-        for(io in 3:length(link_organizacao)){
-          html_insede_organizacoes <- rvest::read_html(link_organizacao[io])
-          ##Verificando quantas paginas tenho
-          paginas_insede_organizacoes=verificar_paginas(html=html_insede_organizacoes)
-          ##Em cada pagina, entro e vejo quantos links tenho
-          #for(iop in 1){
-          for(iop in 72:paginas_insede_organizacoes){
-            #vendos os links de cada pagina
-            link_base=rvest::read_html(paste0(link_organizacao[io],"?q=&sort=&page=",iop))%>%
-              rvest::html_nodes('div div article div ul li div h3 a')%>%
-              html_attr('href')
-            if(any(!stringr::str_detect(link_base,"dataset"))){link_base<-link_base[-which(!stringr::str_detect(link_base,"dataset"))]}
-            link_base<-paste0(prefixo_site1,link_base)  
-            #dentro do site pego as informacoes que quero da base
-            #for(b in 1){
-            for(b in 1:length(link_base)){
-              #Se ja fiz, pula
-              id=paste0(o,io,iop,b)
-              if(id%in%c(resultado$id)){
+html_cj_dados <- rvest::read_html("https://dev.dados.gov.br/dataset")
+#Entrar em todas as paginas (Conjunto de Dados)---------------------------------
+paginas_cj_dados=verificar_paginas(html=html_cj_dados)
+tryCatch(
+  {
+    #for(cjd in 1:paginas_cj_dados){
+    for(cjd in 1:paginas_cj_dados){
+      #Entrando em todos os conjuntos de dados de cada pg---------------------------
+      link_cj_dados=NA
+      tryCatch({link_cj_dados=rvest::read_html(paste0("https://dev.dados.gov.br/dataset?q=&sort=&page=",cjd))%>%
+        rvest::html_nodes('div div section div ul li a')%>%
+        html_attr('href')%>%unique()},error = function(e) {cat("Error:", conditionMessage(e), "\n")})
+      if(all(!is.na(link_cj_dados))){
+        if(any(!stringr::str_detect(link_cj_dados,"dataset"))){link_cj_dados<-link_cj_dados[-which(!stringr::str_detect(link_cj_dados,"dataset"))]}
+        #procurar<-c("/dataset/testeeeee","/dataset/atendimento","/dataset/cursos-tecnicos")
+        #if(any(link_cj_dados%in%c(procurar))){link_cj_dados<-link_cj_dados[-c(which(link_cj_dados%in%c(procurar)))]}
+        if(any(link_cj_dados%>%stringr::str_detect("q[=][&]sort[=][&]page"))){link_cj_dados<-link_cj_dados[-c(which(link_cj_dados%>%stringr::str_detect("q[=][&]sort[=][&]page")))]}
+        for(p_cjd in 1:length(link_cj_dados)){
+          link_cj_dados_dentro<-ifelse(link_cj_dados[p_cjd]%>%stringr::str_detect("http[:]")|link_cj_dados[p_cjd]%>%stringr::str_detect("https[:]"),link_cj_dados[p_cjd],paste0("https://dev.dados.gov.br",link_cj_dados[p_cjd],collapse = "/"))
+          link_p_cjd=NA
+          tryCatch({link_p_cjd=rvest::read_html(link_cj_dados_dentro)},error = function(e) {cat("Error:", conditionMessage(e), "\n")})
+          if(!is.na(link_p_cjd)){
+            #Coletando as informacoes da organizacao
+            Organizacao=link_p_cjd%>%
+              rvest::html_nodes("div aside div section h1")%>%
+              rvest::html_text()%>%
+              dplyr::first()%>%stringr::str_remove_all("[\n]")%>%trimws()
+            Conjunto_de_Dados=link_p_cjd%>%
+              rvest::html_nodes("div aside section div div h1")%>%
+              rvest::html_text()%>%
+              dplyr::first()%>%stringr::str_remove_all("[\n]")%>%trimws()
+            #Pegando cada um dos datasets-----------------------------------------------
+            link_dataset=link_p_cjd%>%
+              rvest::html_nodes("div div div div article div section ul li a")%>%
+              html_attr('href')%>%stringr::str_remove_all("[\n]")%>%unique()
+            if(any(link_dataset%>%stringr::str_detect("/dataset/"))){link_dataset<-link_dataset[which(link_dataset%>%stringr::str_detect("/dataset/"))]}
+            if(any(link_dataset%>%stringr::str_detect("plus[.]google|twitter[.]com|facebook[.]com|landpage"))){link_dataset<-link_dataset[-which(link_dataset%>%stringr::str_detect("plus[.]google|twitter[.]com|facebook[.]com|landpage"))]}
+            link_dataset<-ifelse(link_dataset%>%stringr::str_detect("http[:]")|link_dataset%>%stringr::str_detect("https[:]"),link_dataset,paste0("https://dev.dados.gov.br",link_dataset))
+            procurar<-c("https://dev.dados.gov.br/dataset/",paste0(paste0("https://dev.dados.gov.br/dataset/",c("groups","activity")),link_cj_dados[p_cjd]%>%stringr::str_remove("dataset/")),link_cj_dados_dentro)
+            if(any(link_dataset%in%procurar)){link_dataset<-link_dataset[-which(link_dataset%in%procurar)]}
+            link_dataset<-link_dataset[link_dataset%>%stringr::str_detect("dev[.]dados[.]gov[.]br")]
+            for(d in 1:length(link_dataset)){
+              id=paste(cjd,p_cjd,d,sep="_")
+              suppressWarnings(dir.create('separado'))
+              suppressWarnings(dir.create(paste0('separado/',cjd)))
+              
+              if(id%in%c(dir(paste0('separado/',cjd))%>%stringr::str_remove_all("[.]xlsx"))){
                 print(paste0("Já fiz id ",id))
               }else{
-                html_base <- rvest::read_html(link_base[b])
-                organizacao=rvest::read_html(paste0(link_organizacao[io],"?q=&sort=&page=",iop))%>%
-                  rvest::html_nodes("div aside div section h1")%>%
-                  rvest::html_text()%>%
-                  dplyr::first()%>%stringr::str_remove_all("[\n]")%>%trimws()
-                titulo=html_base%>%
-                  rvest::html_nodes("div aside section div div h1")%>%
-                  rvest::html_text()%>%
-                  dplyr::first()%>%stringr::str_remove_all("[\n]")%>%trimws()
-                link=link_base[b]
-                x=data.frame(id,organizacao,titulo,link,`Pg Inicial`=o,Org=io,`Pg Org`=iop,Bases=b)
-                resultado<-rbind(resultado,x)
-                print(paste0("ID=",id," Pg Inicial[o=",o,'/',paginas_organizacoes,"] Organizacao[io=",io,'/',length(link_organizacao),"] Pg Org[iop=",iop,'/',paginas_insede_organizacoes,"] Bases[b=",b,'/',length(link_base),"{",organizacao,"}"))
-                rm(x,html_base,titulo,link,organizacao)
+                html_link=NA
+                tryCatch({html_link=rvest::read_html(link_dataset[d])},error = function(e) {cat("Error:", conditionMessage(e), "\n")})
+                if(!is.na(html_link)){
+
+                  Dataset=html_link%>%
+                    rvest::html_nodes("div section div h1")%>%
+                    rvest::html_text2()%>%
+                    dplyr::first()%>%stringr::str_remove_all("[\n]")%>%trimws()
+                  
+                  Descricao=html_link%>%
+                    rvest::html_nodes("div section div div blockquote")%>%
+                    rvest::html_text2()
+                  if(any(Descricao=="")){Descricao=Descricao[-which(Descricao=="")]}
+                  Descricao=Descricao%>%dplyr::first()%>%stringr::str_remove_all("[\n]")%>%trimws()
+                  if(is.na(Descricao)){
+                    Descricao=html_link%>%
+                      rvest::html_nodes("div section div div p")%>%
+                      rvest::html_text2()
+                    if(any(Descricao=="")){Descricao=Descricao[-which(Descricao=="")]}
+                    Descricao=Descricao%>%dplyr::first()%>%stringr::str_remove_all("[\n]")%>%trimws()
+                  }
+                  if(is.na(Dataset)){
+                    Formato=NA
+                  }else{
+                    Formato=html_link%>% 
+                      rvest::html_node("div div section table")%>% 
+                      rvest::html_table()%>%dplyr::rename(campo=1)%>%dplyr::filter(campo=="format")%>%
+                      dplyr::select(2)%>%dplyr::pull()
+                    if(length(Formato)==0){
+                      Formato=html_link%>% 
+                        rvest::html_node("div div section table")%>% 
+                        rvest::html_table()%>%dplyr::rename(campo=1)%>%dplyr::filter(campo=="Formato")%>%
+                        dplyr::select(2)%>%dplyr::pull()
+                    }
+                    
+                    x=data.frame(id,Organizacao,Conjunto_de_Dados,Dataset,Formato,Descricao,link=link_dataset[d])
+                    #Salvando na pasta--------------------------------------------------------
+                    openxlsx::write.xlsx(x,paste0("separado/",cjd,"/",id,".xlsx"))
+                    #rm(x,id) 
+                  }
+                  print(paste0("ID=",id,"[cjd=",cjd,'/',paginas_cj_dados,"][p_cjd=",p_cjd,'/',length(link_cj_dados),"][d=",d,'/',length(link_dataset),"]","{",Conjunto_de_Dados,"/",Conjunto_de_Dados,"}"))
+
+                }else{
+                  print(paste0("ERROR ID=",id,"[cjd=",cjd,'/',paginas_cj_dados,"][p_cjd=",p_cjd,'/',length(link_cj_dados),"][d=",d,'/',length(link_dataset),"]","{",Conjunto_de_Dados,"/",Conjunto_de_Dados,"}"))
+                  openxlsx::write.xlsx(data.frame(a=NA),paste0("separado/ERROR_",id,".xlsx"))
+                }
+                
               }
+              
+              #Se tiver o arquivo de erro e o normal, excluir o de erro
+              if(paste0(cjd,".xlsx")%in%dir(paste0('separado/',cjd))&paste0("ERROR_",cjd,".xlsx")%in%dir("separado/")){
+                file.remove(paste0("separado/ERROR_",cjd,".xlsx"))
+                print(paste0("APAGUEI: ERROR_",cjd,".xlsx"))
+              }
+              
             }
+          }else{
+            print(paste0("ERROR ID=",paste(cjd,p_cjd,sep="_"),"[cjd=",cjd,'/',paginas_cj_dados,"][p_cjd=",p_cjd,'/',length(link_cj_dados),"][d=",'/',"]","{","/","}"))
+            openxlsx::write.xlsx(data.frame(a=NA),paste0("separado/ERROR_",paste(cjd,p_cjd,sep="_",".xlsx")))
           }
-          
+
         }
         
-      },
-      error = function(e) {
-        cat("Error:", conditionMessage(e), "\n")
-        print(paste0("ERROR ID=",id," Pg Inicial[o=",o,'/',paginas_organizacoes,"] Organizacao[io=",io,'/',length(link_organizacao),"] Pg Org[iop=",iop,'/',paginas_insede_organizacoes,"] Bases[b=",b,'/',length(link_base),"{",organizacao,"}"))
-        
+      }else{
+        print(paste0("ERROR ID=",cjd,"[cjd=",cjd,'/',"][p_cjd=",'/',"][d=",'/',"]","{","/","}"))
+        openxlsx::write.xlsx(data.frame(a=NA),paste0("separado/ERROR_",id,".xlsx"))
       }
-    )
+
+    }
+  },
+  error = function(e) {
+    cat("Error:", conditionMessage(e), "\n")
+    print(paste0("ERROR ID=",id,"[cjd=",cjd,'/',paginas_cj_dados,"][p_cjd=",p_cjd,'/',length(link_cj_dados),"][d=",d,'/',length(link_dataset),"]","{",Conjunto_de_Dados,"/",Conjunto_de_Dados,"}"))
+    openxlsx::write.xlsx(data.frame(a=NA),paste0("separado/ERROR_",id,".xlsx"))
+    
   }
-  
-  #Salvando em excel
-  wb <- openxlsx::createWorkbook()
-  openxlsx::addWorksheet(wb, sheetName = "Bases")
-  openxlsx::writeDataTable(wb,sheet = "Bases", resultado,tableStyle ="TableStyleMedium2")
-  openxlsx::saveWorkbook(wb, "we_scraping_R_ibict.xlsx", overwrite = TRUE)
-  
+)
+#-------------------------------------------------------------------------------
+#Empilhando tudo----------------------------------------------------------------
+
+pastas<-dir("separado/")
+pastas<-pastas[!stringr::str_detect(pastas,".xlsx")]
+#dados=NA
+for(i in 532:length(pastas)){
+ arquivos=dir(paste0("separado/",pastas[i]))
+ for(j in 1:length(arquivos)){
+   if(paste0("separado/",pastas[i],"/",arquivos[j])%nin%c(paste0("separado/",pastas[i],"/",c("196_13_49.xlsx")))){
+     a=openxlsx::read.xlsx(paste0("separado/",pastas[i],"/",arquivos[j]))
+     if(all(is.na(dados))){dados=a}else{dados=rbind(dados,a)%>%unique()}
+     print(paste0("separado/",pastas[i],"/",arquivos[j])) 
+   }
+ }
 }
+
+a=dados
+a$id1=NA;a$id2=NA;a$id3=NA
+for(i in 1:nrow(a)){
+  a$id1[i]=strsplit(a$id[i], "_", fixed=T)[[1]][1]
+  a$id2[i]=strsplit(a$id[i], "_", fixed=T)[[1]][2]
+  a$id3[i]=strsplit(a$id[i], "_", fixed=T)[[1]][3]
+  print(paste0(i,"/",nrow(a)))
+}
+
+
+a=a%>%dplyr::mutate(id1=as.numeric(id1),id2=as.numeric(id2),id3=as.numeric(id3))%>%
+  dplyr::arrange(id1,id2,id3,Organizacao,Conjunto_de_Dados)
+openxlsx::write.xlsx(a%>%dplyr::select(-c(id1,id2,id3)),"Mapeados.xlsx",overwrite=TRUE)
+
+#Pasta 67 corrompida, refazer ela todinha!! i=531
