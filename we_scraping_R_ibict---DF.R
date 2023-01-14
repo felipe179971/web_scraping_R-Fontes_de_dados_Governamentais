@@ -29,9 +29,9 @@ verificar_paginas<-function(html){
   return(x)
 }
 #Executando#####################################################################
-cjd=17
-p_cjd=1
-d=1
+# cjd=17
+# p_cjd=1
+# d=1
 
 html_cj_dados <- rvest::read_html("http://www.dados.df.gov.br/dataset")
 #Entrar em todas as paginas (Conjunto de Dados)---------------------------------
